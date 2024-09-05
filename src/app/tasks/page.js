@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchTasks, fetchCategories, addTask, toggleTask, deleteTask, addCategory, deleteCategory } from '../utils/api';
 import { PieChart } from '../components/PieChart';
 import { LineChart } from '../components/LineChart';
@@ -9,14 +9,6 @@ import PriorityBarChart from '../components/BarChart';
 import { TaskForm } from '../components/TaskForm';
 import { TaskList } from '../components/TaskList';
 import TaskFilters from './TaskFilters';
-import SettingsPopup from '../components/SettingsPopup';
-
-const chartComponents = {
-  PieChart: PieChart,
-  LineChart: LineChart,
-  CategoryRadarChart: CategoryRadarChart,
-  PriorityBarChart: PriorityBarChart,
-};
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
@@ -30,10 +22,42 @@ export default function TasksPage() {
   });
   const [categoryStats, setCategoryStats] = useState([]);
   const [completedTasksLast7Days, setCompletedTasksLast7Days] = useState([]);
-  const [activeCharts, setActiveCharts] = useState(['PieChart', 'LineChart', 'CategoryRadarChart', 'PriorityBarChart']);
-  const [showChartSelector, setShowChartSelector] = useState(false);
-  const [showSettingsPopup, setShowSettingsPopup] = useState(false);
   const [defaultTasks, setDefaultTasks] = useState([]);
+
+  const calculateChartData = useCallback(() => {
+    const tasksByCategory = tasks.reduce((acc, task) => {
+      if (!acc[task.category.name]) {
+        acc[task.category.name] = { total: 0, completed: 0 };
+      }
+      acc[task.category.name].total++;
+      if (task.completed) {
+        acc[task.category.name].completed++;
+      }
+      return acc;
+    }, {});
+
+    return Object.entries(tasksByCategory).map(([name, { total, completed }]) => ({
+      name,
+      value: completed,
+      total
+    }));
+  }, [tasks]);
+
+  const calculateCompletedTasksLast7Days = useCallback(() => {
+    return [...Array(7)].map((_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const formattedDate = date.toISOString().split('T')[0];
+      return {
+        date: formattedDate,
+        completedTasks: tasks.filter(task =>
+          task.completed &&
+          task.completedAt &&
+          new Date(task.completedAt).toISOString().split('T')[0] === formattedDate
+        ).length
+      };
+    }).reverse();
+  }, [tasks]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,7 +74,7 @@ export default function TasksPage() {
     setCategoryStats(newCategoryStats);
     const newCompletedTasksLast7Days = calculateCompletedTasksLast7Days();
     setCompletedTasksLast7Days(newCompletedTasksLast7Days);
-  }, [tasks]);
+  }, [tasks, calculateChartData, calculateCompletedTasksLast7Days]);
 
   useEffect(() => {
     const addDefaultTasks = async () => {
@@ -68,10 +92,10 @@ export default function TasksPage() {
     addDefaultTasks();
   }, [defaultTasks]);
 
-  const handleAddTask = async (task) => {
+  const handleAddTask = useCallback(async (task) => {
     const newTask = await addTask(task);
-    setTasks([...tasks, newTask]);
-  };
+    setTasks(prevTasks => [...prevTasks, newTask]);
+  }, []);
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim() !== '') {
@@ -83,50 +107,11 @@ export default function TasksPage() {
 
   const handleDeleteCategory = async (categoryId) => {
     await deleteCategory(categoryId);
-    setCategories(categories.filter(category => category.id !== categoryId));
+    setCategories(categories.filter(category => category._id !== categoryId));
   };
-  
-  
-  
 
   const handleFilterChange = (filter, value) => {
     setFilters({ ...filters, [filter]: value });
-  };
-
-  const calculateChartData = () => {
-    const tasksByCategory = tasks.reduce((acc, task) => {
-      const categoryName = task.category?.name || 'Uncategorized';
-      if (!acc[categoryName]) {
-        acc[categoryName] = { total: 0, completed: 0 };
-      }
-      acc[categoryName].total++;
-      if (task.completed) {
-        acc[categoryName].completed++;
-      }
-      return acc;
-    }, {});
-  
-    return Object.entries(tasksByCategory).map(([name, { total, completed }]) => ({
-      name,
-      value: completed,
-      total
-    }));
-  };
-
-  const calculateCompletedTasksLast7Days = () => {
-    return [...Array(7)].map((_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      const formattedDate = date.toISOString().split('T')[0];
-      return {
-        date: formattedDate,
-        completedTasks: tasks.filter(task =>
-          task.completed &&
-          task.completedAt &&
-          new Date(task.completedAt).toISOString().split('T')[0] === formattedDate
-        ).length
-      };
-    }).reverse();
   };
 
   const CategoryList = () => (
@@ -141,24 +126,6 @@ export default function TasksPage() {
       ))}
     </ul>
   );
-  
-
-  const handleAddChart = (chartType) => {
-    setActiveCharts([...activeCharts, chartType]);
-    setShowChartSelector(false);
-  };
-
-  const handleRemoveChart = (chartType) => {
-    setActiveCharts(activeCharts.filter(chart => chart !== chartType));
-  };
-
-  const handleAddDefaultTask = (task) => {
-    setDefaultTasks([...defaultTasks, { ...task, lastAdded: null }]);
-  };
-
-  const handleRemoveDefaultTask = (index) => {
-    setDefaultTasks(defaultTasks.filter((_, i) => i !== index));
-  };
 
   return (
     <div className="bg-gray-900 text-white min-h-screen p-8">
@@ -166,7 +133,7 @@ export default function TasksPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-3xl font-bold mb-6 text-blue-300 border-b-2 border-blue-500 pb-2 inline-block">Create Tasks</h2>
+          <h2 className="text-3xl font-bold mb-6 text-blue-300 border-b-2 border-blue-500 pb-2 inline-block">Create Task</h2>
           <TaskForm onAddTask={handleAddTask} categories={categories} />
         </div>
         <div className="bg-gray-800 rounded-lg shadow-lg p-6">
@@ -196,71 +163,24 @@ export default function TasksPage() {
       <div className="mt-12">
         <h2 className="text-4xl font-bold mb-8 text-blue-300 border-b-2 border-blue-500 pb-2 inline-block">Task Analytics</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {activeCharts.map((chartType) => {
-            const ChartComponent = chartComponents[chartType];
-            return (
-              <div key={chartType} className="bg-gray-800 rounded-lg shadow-lg p-6 relative">
-                <button
-                  onClick={() => handleRemoveChart(chartType)}
-                  className="absolute top-2 right-2 text-red-500 hover:text-red-600"
-                >
-                  ✕
-                </button>
-                <h3 className="text-2xl font-bold mb-4 text-blue-200 border-b border-blue-400 pb-2">{chartType}</h3>
-                <ChartComponent data={chartType === 'PieChart' ? categoryStats : completedTasksLast7Days} tasks={tasks} categories={categories} />
-              </div>
-            );
-          })}
-          {activeCharts.length < 4 && (
-            <div
-              className="bg-gray-800 rounded-lg shadow-lg p-6 flex items-center justify-center cursor-pointer"
-              onClick={() => setShowChartSelector(true)}
-            >
-              <span className="text-6xl text-blue-500">+</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showChartSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <h3 className="text-2xl font-bold mb-4">Select a chart to add</h3>
-            {Object.keys(chartComponents).map((chartType) => (
-              <button
-                key={chartType}
-                onClick={() => handleAddChart(chartType)}
-                className="block w-full text-left p-2 hover:bg-gray-700 rounded"
-              >
-                {chartType}
-              </button>
-            ))}
-            <button
-              onClick={() => setShowChartSelector(false)}
-              className="mt-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
-            >
-              Cancel
-            </button>
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h3 className="text-2xl font-bold mb-4 text-blue-200 border-b border-blue-400 pb-2">Completed Tasks by Category</h3>
+            <PieChart data={categoryStats} />
+          </div>
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h3 className="text-2xl font-bold mb-4 text-blue-200 border-b border-blue-400 pb-2">Tasks Completed in Last 7 Days</h3>
+            <LineChart data={completedTasksLast7Days} />
+          </div>
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h3 className="text-2xl font-bold mb-4 text-blue-200 border-b border-blue-400 pb-2">Category Completion Rates</h3>
+            <CategoryRadarChart tasks={tasks} categories={categories} />
+          </div>
+          <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+            <h3 className="text-2xl font-bold mb-4 text-blue-200 border-b border-blue-400 pb-2">Tasks by Priority</h3>
+            <PriorityBarChart tasks={tasks} />
           </div>
         </div>
-      )}
-
-      <button
-        onClick={() => setShowSettingsPopup(true)}
-        className="fixed bottom-4 right-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full"
-      >
-        Settings
-      </button>
-
-      {showSettingsPopup && (
-        <SettingsPopup
-          onClose={() => setShowSettingsPopup(false)}
-          defaultTasks={defaultTasks}
-          onAddDefaultTask={handleAddDefaultTask}
-          onRemoveDefaultTask={handleRemoveDefaultTask}
-          categories={categories}
-        />
-      )}
+      </div>
     </div>
   );
 }

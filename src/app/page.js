@@ -56,7 +56,7 @@ export default function Home() {
                 <BarChart className="w-full aspect-[4/3] mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Time Allocation</h3>
                 <p className="text-gray-400">
-                  Understand how you're spending your time across different subjects and tasks.
+                  Understand how youre spending your time across different subjects and tasks.
                 </p>
               </div>
               <div className="bg-gray-700 rounded-xl shadow-lg p-6 transition-transform duration-300 hover:scale-105">
