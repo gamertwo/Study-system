@@ -166,7 +166,7 @@ export default function TasksPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         <div className="bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-3xl font-bold mb-6 text-blue-300 border-b-2 border-blue-500 pb-2 inline-block">Create Task</h2>
+          <h2 className="text-3xl font-bold mb-6 text-blue-300 border-b-2 border-blue-500 pb-2 inline-block">Create Tasks</h2>
           <TaskForm onAddTask={handleAddTask} categories={categories} />
         </div>
         <div className="bg-gray-800 rounded-lg shadow-lg p-6">
