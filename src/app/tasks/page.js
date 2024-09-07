@@ -9,6 +9,7 @@ import PriorityBarChart from '../components/BarChart';
 import { TaskForm } from '../components/TaskForm';
 import { TaskList } from '../components/TaskList';
 import TaskFilters from './TaskFilters';
+import Navbar from '../components/Navbar';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
@@ -26,22 +27,24 @@ export default function TasksPage() {
 
   const calculateChartData = useCallback(() => {
     const tasksByCategory = tasks.reduce((acc, task) => {
-      if (!acc[task.category.name]) {
-        acc[task.category.name] = { total: 0, completed: 0 };
+      const categoryName = task.category?.name || 'Uncategorized';
+      if (!acc[categoryName]) {
+        acc[categoryName] = { total: 0, completed: 0 };
       }
-      acc[task.category.name].total++;
+      acc[categoryName].total++;
       if (task.completed) {
-        acc[task.category.name].completed++;
+        acc[categoryName].completed++;
       }
       return acc;
     }, {});
-
+  
     return Object.entries(tasksByCategory).map(([name, { total, completed }]) => ({
       name,
       value: completed,
       total
     }));
   }, [tasks]);
+  
 
   const calculateCompletedTasksLast7Days = useCallback(() => {
     return [...Array(7)].map((_, i) => {
@@ -96,6 +99,7 @@ export default function TasksPage() {
     const newTask = await addTask(task);
     setTasks(prevTasks => [...prevTasks, newTask]);
   }, []);
+  
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim() !== '') {
@@ -128,6 +132,8 @@ export default function TasksPage() {
   );
 
   return (
+    <div>
+      <Navbar/>
     <div className="bg-gray-900 text-white min-h-screen p-8">
       <h1 className="text-5xl font-extrabold mb-12 text-center text-blue-400 tracking-wide uppercase bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Task Manager</h1>
 
@@ -181,6 +187,6 @@ export default function TasksPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div></div>
   );
 }

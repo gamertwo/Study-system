@@ -88,8 +88,6 @@ export async function deleteCategory(categoryId) {
   return updatedCategories;
 }
 
-
-
 export const fetchSubjects = async () => {
   await dbConnect();
   initializeModels();

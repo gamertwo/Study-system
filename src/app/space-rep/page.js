@@ -8,7 +8,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import YouTubeIcon from '@mui/icons-material/YouTube';
-import path from 'path';
+import { connectToDB, Subject } from '../utils/db';
 
 const theme = createTheme({
   palette: {
@@ -19,8 +19,6 @@ const theme = createTheme({
   },
 });
 
-const dataFilePath = path.join(process.cwd(), 'data', 'topics.json');
-
 export default function SpaceRepPage() {
   const [topics, setTopics] = useState([]);
   const [newTopic, setNewTopic] = useState('');
@@ -28,87 +26,75 @@ export default function SpaceRepPage() {
   const [selectedDate2, setSelectedDate2] = useState(null);
 
   useEffect(() => {
-    const storedTopics = localStorage.getItem('spaceRepTopics');
-    if (storedTopics) {
-      const parsedTopics = JSON.parse(storedTopics);
-      if (parsedTopics.length > 0) {
-        setTopics(parsedTopics.map(topic => ({
-          ...topic,
-          date1: new Date(topic.date1),
-          date2: new Date(topic.date2)
-        })));
-      }
-    }
+    const fetchTopics = async () => {
+      await connectToDB();
+      const subjects = await Subject.find({});
+      const fetchedTopics = subjects.flatMap(subject => 
+        subject.topics.map(topic => ({
+          id: topic._id,
+          name: topic.content,
+          date1: new Date(topic.nextReview),
+          date2: new Date(topic.nextReview),
+          revised1: topic.revised1,
+          revised2: topic.revised2,
+          subjectId: subject._id
+        }))
+      );
+      setTopics(fetchedTopics);
+    };
+    fetchTopics();
   }, []);
-  
-  
-  useEffect(() => {
-    const storedTopics = localStorage.getItem('spaceRepTopics');
-    console.log('Raw stored topics:', storedTopics);
-    
-    if (storedTopics) {
-      try {
-        const parsedTopics = JSON.parse(storedTopics);
-        console.log('Parsed topics:', parsedTopics);
-        
-        const formattedTopics = parsedTopics.map(topic => ({
-          ...topic,
-          date1: new Date(topic.date1),
-          date2: new Date(topic.date2)
-        }));
-        console.log('Formatted topics:', formattedTopics);
-        
-        setTopics(formattedTopics);
-      } catch (error) {
-        console.error('Error parsing stored topics:', error);
-      }
-    } else {
-      console.log('No stored topics found');
-    }
-  }, []);
-  
-  
-  useEffect(() => {
-    if (topics.length > 0) {
-      localStorage.setItem('spaceRepTopics', JSON.stringify(topics));
-    }
-  }, [topics]);
-  
-  
 
-  const handleAddTopic = () => {
+  const handleAddTopic = async () => {
     if (newTopic && selectedDate1 && selectedDate2) {
+      await connectToDB();
+      const newSubject = new Subject({
+        name: 'Space Repetition',
+        topics: [{
+          content: newTopic,
+          nextReview: selectedDate1,
+          revised1: false,
+          revised2: false
+        }]
+      });
+      const savedSubject = await newSubject.save();
       const newTopicObj = {
-        id: Date.now(),
+        id: savedSubject.topics[0]._id,
         name: newTopic,
         date1: selectedDate1,
         date2: selectedDate2,
         revised1: false,
-        revised2: false
+        revised2: false,
+        subjectId: savedSubject._id
       };
-      console.log('Adding new topic:', newTopicObj);
-      setTopics(prevTopics => {
-        const updatedTopics = [...prevTopics, newTopicObj];
-        console.log('Updated topics:', updatedTopics);
-        return updatedTopics;
-      });
+      setTopics([...topics, newTopicObj]);
       setNewTopic('');
       setSelectedDate1(null);
       setSelectedDate2(null);
     }
   };
-  
-  
-  
 
-  const handleCheckboxChange = (id, dateNum) => {
-    setTopics(topics.map(topic => 
+  const handleCheckboxChange = async (id, dateNum) => {
+    const updatedTopics = topics.map(topic => 
       topic.id === id ? { ...topic, [`revised${dateNum}`]: !topic[`revised${dateNum}`] } : topic
-    ));
+    );
+    setTopics(updatedTopics);
+    await connectToDB();
+    const topic = updatedTopics.find(t => t.id === id);
+    await Subject.findOneAndUpdate(
+      { _id: topic.subjectId, 'topics._id': id },
+      { $set: { [`topics.$.revised${dateNum}`]: topic[`revised${dateNum}`] } }
+    );
   };
 
-  const handleDeleteTopic = (id) => {
+  const handleDeleteTopic = async (id) => {
+    const topicToDelete = topics.find(t => t.id === id);
     setTopics(topics.filter(topic => topic.id !== id));
+    await connectToDB();
+    await Subject.findOneAndUpdate(
+      { _id: topicToDelete.subjectId },
+      { $pull: { topics: { _id: id } } }
+    );
   };
 
   const handleYouTubeSearch = () => {

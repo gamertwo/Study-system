@@ -1,26 +1,6 @@
-export async function fetchTasks(filterOptions = {}) {
-  const { category, time, date, priority } = filterOptions;
-  let url = '/api/tasks';
-
-  if (category) {
-    url += `?category=${category}`;
-  }
-
-  if (time) {
-    url += `${url.includes('?') ? '&' : '?'}time=${time}`;
-  }
-
-  if (date) {
-    url += `${url.includes('?') ? '&' : '?'}date=${date}`;
-  }
-
-  if (priority) {
-    url += `${url.includes('?') ? '&' : '?'}priority=${priority}`;
-  }
-
-  const response = await fetch(url);
-  const tasks = await response.json();
-  return tasks;
+export async function fetchTasks(filters) {
+  const response = await fetch('/api/tasks');
+  return await response.json();
 }
 
 export async function fetchCategories() {
@@ -32,20 +12,12 @@ export async function fetchCategories() {
 export async function addTask(task) {
   const response = await fetch('/api/tasks', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to add task: ${errorText}`);
-  }
-
-  const newTask = await response.json();
-  return newTask;
+  return await response.json();
 }
+
 
 export async function toggleTask(id) {
   if (!id) {
